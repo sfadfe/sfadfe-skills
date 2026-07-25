@@ -1,0 +1,2 @@
+# Optional: only needed for TensorBoard event files
+tensorboard>=2.14.0
