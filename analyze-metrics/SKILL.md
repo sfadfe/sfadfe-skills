@@ -1,74 +1,37 @@
 ---
 name: analyze-metrics
 description: >-
-  Two-pass compression and analysis of TensorBoard or CSV metrics without
-  loading long training dumps into context. Use when inspecting training,
-  RL, PINNs, or ML run logs, TensorBoard runs, metrics.csv, convergence,
-  divergence, plateaus, NaNs, or comparing runs.
+  Compress TensorBoard/CSV training metrics so agents avoid dumping long logs
+  into context. Use for run logs, metrics.csv, tfevents, compare runs.
+  Teaches a screen→detail method; outputs numbers only — interpret yourself.
+  Project-specific logging cadence belongs in the project, not this skill.
 ---
 
 # Analyze Metrics
 
-## Hard rules
+Goal: shrink log context. Not: declare converge / diverge / overfit.
 
-1. **Never** `Read` / `cat` full TensorBoard event files or large metrics CSVs.
-2. Always use `scripts/summarize.py`. Prefer **screen → detail**, not one giant dump.
-3. Infer domain from metric names + user goal. Do not assume PINNs/RL/etc.
-4. Match answer shape to purpose (`health`, `converge`, `compare`, `debug`). If unclear, ask one short question or use `--purpose auto`.
+## Method
 
-## Two-pass workflow
-
-### Pass 1 — screen (default, tiny)
-
-```bash
-python scripts/summarize.py <path> --mode screen --purpose <auto|health|converge|compare|debug>
-```
-
-Use the JSON for:
-- run `status`: `ok` / `warn` / `bad`
-- `verdicts` (heuristic)
-- `top_metrics` only (anomalies + primary objectives)
-- `next.suggested_metrics` for follow-up
-
-Do **not** request samples yet.
-
-### Pass 2 — detail (only if needed)
+1. **Never** `Read` / `cat` full CSV or tfevents.
+2. **Screen** — one compact digest of the run (or both runs if comparing).
+3. **Decide what matters** from names + user goal (primary losses, val, rollout, …).
+4. **Detail** only those series (`--metrics a,b`). Skip if screen already enough.
+5. **Interpret** last/best/early/late/jump/nan counts yourself. The JSON is evidence, not a verdict.
+6. Project rules (which metric is king, LR phases, ckpt checks) stay in the project.
 
 ```bash
-python scripts/summarize.py <path> --mode detail --purpose <purpose> --metrics name1,name2
+python scripts/summarize.py <path>                          # screen
+python scripts/summarize.py <path> --mode detail --metrics a,b
+python scripts/summarize.py <a> --compare <b>
 ```
 
-- Restrict with `--metrics` from pass-1 suggestions or the user's focus.
-- Reason from importance-sampled points + flags.
-- Avoid `--mode detail` on all metrics unless the run is tiny.
+## What the JSON is for
 
-### Compare
+- `top` / `metrics`: compact numbers to reason over
+- `other`: names you can pull into a later detail pass
+- `next`: suggested detail targets (still your call)
+- schedules (`lr`, `Lambda_*`, `PhysRamp`, …) stay out of Top-K on purpose
+- steps are sorted ascending when the file is newest-first
 
-```bash
-python scripts/summarize.py <pathA> --compare <pathB> --mode screen --purpose compare
-```
-
-Then detail only metrics that disagree or look unhealthy.
-
-## Purpose → focus
-
-| Purpose | Focus |
-|---------|--------|
-| health | NaN/Inf, explosion, spikes, empty |
-| converge | best/last, plateau, stall, regret from best |
-| compare | shared deltas, winner_by_last |
-| debug | anomaly steps + detail samples around jumps |
-| auto | mixed screen; refine after first read |
-
-Answer pattern: **verdict → evidence (from JSON) → next action**.
-
-## Compression notes (what the script already does)
-
-- Scores metrics (NaN/Inf, explosion, spike, plateau, stall, regression); screen keeps Top-K.
-- Down-ranks aux series (`lr`, `grad_norm`, …) unless catastrophic.
-- Detail samples are **importance-sampled** (endpoints, extrema, largest jumps), not only uniform.
-- Numbers are rounded; screen omits `sampled` entirely.
-
-## Deps
-
-CSV: stdlib only. TensorBoard: `pip install -r requirements.txt`.
+TB needs: `pip install -r requirements.txt` (CSV is stdlib-only).
