@@ -17,3 +17,9 @@ ln -s "$(pwd)/analyze-metrics" ~/.cursor/skills/analyze-metrics
 ```
 
 Or reference skills from this repo when working inside it.
+
+Run regression tests:
+
+```bash
+python3 -m unittest discover -s analyze-metrics/tests -p 'test_*.py'
+```
